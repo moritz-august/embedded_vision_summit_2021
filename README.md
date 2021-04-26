@@ -1,1 +1,1 @@
-# embedded_vision_summit_2021
+# Example code for Embedded Vision Summit 2021
