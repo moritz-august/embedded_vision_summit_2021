@@ -138,31 +138,38 @@ def trace_and_serialize(model: nn.Module, example: torch.Tensor, path: str,
     torch.jit.save(traced_model, path)
 
 
-def training_loop():
-    pass
+def training_loop(model: nn.Module, dataloader: DataLoader):
+    for batch in dataloader:
+        # we don't actually do anything here other than initializing the BatchNorm2d parameters
+        # to ensure proper quantization.
+        model(batch)
 
 
 def deploy_float(model: nn.Module, name: str):
-    scripted_path = f'./{name}_float_scripted.pt'
-    traced_path = f'./{name}_float_traced.pt'
-    vulkan_path = f'./{name}_float_vulkan_traced.pt'
     model.eval()
-    script_and_serialize(model, path=scripted_path)
-    trace_and_serialize(model, example=torch.rand(1, 3, 224, 224), path=traced_path)
-    script_and_serialize(model, path=vulkan_path, opt_backend='VULKAN')
 
+    scripted_path = f'./{name}_float_scripted.pt'
+    script_and_serialize(model, path=scripted_path)
     avg_time = benchmark_model(torch.jit.load(scripted_path))
     size = Path(scripted_path).stat().st_size / 1e6
     print(
         f'Benchmarking {scripted_path}: Avg. inference@CPU: {avg_time:3.2f} ms, Size: {size:2.2f} MB')
+
+    traced_path = f'./{name}_float_traced.pt'
+    trace_and_serialize(model, example=torch.rand(1, 3, 224, 224), path=traced_path)
     avg_time = benchmark_model(torch.jit.load(traced_path))
     size = Path(traced_path).stat().st_size / 1e6
     print(
         f'Benchmarking {traced_path}: Avg. inference@CPU: {avg_time:3.2f} ms, Size: {size:2.2f} MB')
-    avg_time = benchmark_model(torch.jit.load(vulkan_path))
-    size = Path(vulkan_path).stat().st_size / 1e6
-    print(
-        f'Benchmarking {vulkan_path}: Avg. inference@CPU: {avg_time:3.2f} ms, Size: {size:2.2f} MB')
+
+    # Enable this only if you have built PyTorch with USE_VULKAN=1. Will fail otherwise.
+
+    # vulkan_path = f'./{name}_float_vulkan_traced.pt'
+    # script_and_serialize(model, path=vulkan_path, opt_backend='VULKAN')
+    # avg_time = benchmark_model(torch.jit.load(vulkan_path))
+    # size = Path(vulkan_path).stat().st_size / 1e6
+    # print(
+    #     f'Benchmarking {vulkan_path}: Avg. inference@CPU: {avg_time:3.2f} ms, Size: {size:2.2f} MB')
 
 
 def deploy_quantized(dataloader: DataLoader, model: nn.Module, fuse: bool, name: str,
@@ -188,10 +195,12 @@ def deploy_quantized(dataloader: DataLoader, model: nn.Module, fuse: bool, name:
     trace_and_serialize(model_quantized, example=torch.rand(1, 3, 224, 224), path=traced_path,
                         opt_backend='CPU')
 
-    avg_time = benchmark_model(torch.jit.load(scripted_path))
-    size = Path(scripted_path).stat().st_size / 1e6
-    print(
-        f'Benchmarking {scripted_path}: Avg. inference@CPU: {avg_time:3.2f} ms, Size: {size:2.2f} MB')
+    if fuse:
+        avg_time = benchmark_model(torch.jit.load(scripted_path))
+        size = Path(scripted_path).stat().st_size / 1e6
+        print(
+            f'Benchmarking {scripted_path}: Avg. inference@CPU: {avg_time:3.2f} ms, Size: {size:2.2f} MB')
+
     avg_time = benchmark_model(torch.jit.load(traced_path))
     size = Path(traced_path).stat().st_size / 1e6
     print(
@@ -315,7 +324,7 @@ def main():
         dataset = ToyDataset()
         dataloader = DataLoader(dataset)
 
-        training_loop()
+        training_loop(model, dataloader)
 
         deploy_float(model, name=name)
         deploy_onnx_quantized(dataloader, model, fuse=False, name=name)
