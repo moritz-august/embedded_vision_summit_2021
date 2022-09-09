@@ -62,8 +62,8 @@ def deploy_pytorch_quantized(dataloader: DataLoader, model: nn.Module, fuse: boo
     benchmark_model(Path(traced_path))
 
 
-def deploy_pytorch_nnapi(dataloader: DataLoader, model: nn.Module, fuse: bool, name: str,
-                         backend: str = 'qnnpack'):
+def deploy_pytorch_quantized_nnapi(dataloader: DataLoader, model: nn.Module, fuse: bool, name: str,
+                                   backend: str = 'qnnpack'):
     model = deepcopy(model)
     torch.backends.quantized.engine = backend
     model.qconfig = torch.quantization.get_default_qconfig(backend)
