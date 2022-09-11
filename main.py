@@ -4,12 +4,10 @@ from pathlib import Path
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+from benchmark import benchmark_model
 from classifier import ToyClassifier
 from data import ToyDataset
-from deployment import deploy_onnx_quantized
-from deployment import deploy_pytorch_float
-from deployment import deploy_pytorch_quantized
-from deployment import deploy_pytorch_quantized_nnapi
+from deployment import deploy_all
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,12 +33,10 @@ def main():
 
         training_loop(model, dataloader)
 
-        deploy_pytorch_float(model, name=name)
-        deploy_pytorch_quantized(dataloader, model, fuse=False, name=name, backend='fbgemm')
-        deploy_pytorch_quantized(dataloader, model, fuse=True, name=name, backend='fbgemm')
-        deploy_pytorch_quantized_nnapi(dataloader, model, fuse=True, name=name)
-        deploy_onnx_quantized(dataloader, model, fuse=False, name=name)
-        deploy_onnx_quantized(dataloader, model, fuse=True, name=name)
+        benchmark_models = deploy_all(base_model_path, dataloader, model, name)
+
+        for model in benchmark_models:
+            benchmark_model(model)
 
 
 if __name__ == '__main__':
